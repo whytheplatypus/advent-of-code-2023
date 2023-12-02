@@ -13,6 +13,29 @@ pub fn main() !void {
     std.debug.print("result: {d}\n", .{result});
 }
 
+fn is_string_digit(allocator: std.mem.Allocator, input: []const u8) !?i32 {
+    std.debug.print("is_string_digit: {s}\n", .{input});
+    var word_map = std.StringHashMap(i32).init(allocator);
+    defer word_map.deinit();
+    try word_map.put("one", 1);
+    try word_map.put("two", 2);
+    try word_map.put("three", 3);
+    try word_map.put("four", 4);
+    try word_map.put("five", 5);
+    try word_map.put("six", 6);
+    try word_map.put("seven", 7);
+    try word_map.put("eight", 8);
+    try word_map.put("nine", 9);
+
+    return word_map.get(input);
+}
+
+test "is string digit" {
+    const allocator = std.testing.allocator;
+    const actual = try is_string_digit(allocator, "one");
+    try std.testing.expectEqual(@as(i32, 1), actual.?);
+}
+
 fn split_input(allocator: std.mem.Allocator, input: []const u8) ![][]const u8 {
     var result = std.ArrayList([]const u8).init(allocator);
     defer result.deinit();
@@ -54,41 +77,94 @@ test "split input" {
     }
 }
 
-fn find_first(input: []const u8) !i32 {
-    for (input) |c| {
+fn find_first(allocator: std.mem.Allocator, input: []const u8) !i32 {
+    for (0.., input) |i, c| {
         if (std.fmt.parseInt(i32, &[1]u8{c}, 10)) |n| {
             return n;
-        } else |_| {}
+        } else |_| {
+            //try a chunk of 3
+            if (i + 2 < input.len) {
+                if (try is_string_digit(allocator, input[i .. i + 3])) |n| {
+                    return n;
+                }
+            }
+            //try a chunk of 4
+            if (i + 3 < input.len) {
+                if (try is_string_digit(allocator, input[i .. i + 4])) |n| {
+                    return n;
+                }
+            }
+            //try a chunk of 5
+            if (i + 4 < input.len) {
+                if (try is_string_digit(allocator, input[i .. i + 5])) |n| {
+                    return n;
+                }
+            }
+        }
     }
     return error.InvalidParam;
 }
 
 test "find first" {
-    const input = "1abc2";
-    const actual = try find_first(input);
-    try std.testing.expectEqual(@as(i32, 1), actual);
+    const cases = [_]TestCase{
+        TestCase{ .input = "1abc2", .expected = 1 },
+        TestCase{ .input = "two1abc2", .expected = 2 },
+    };
+    for (cases) |case| {
+        const actual = try find_first(std.testing.allocator, case.input);
+        try std.testing.expectEqual(@as(i32, case.expected), actual);
+    }
 }
 
-fn find_last(input: []const u8) !i32 {
+fn find_last(allocator: std.mem.Allocator, input: []const u8) !i32 {
     var i: usize = input.len - 1;
     while (i >= 0) : (i -= 1) {
         const c = input[i];
         if (std.fmt.parseInt(i32, &[1]u8{c}, 10)) |n| {
             return n;
-        } else |_| {}
+        } else |_| {
+            //try a chunk of 3
+            if (i > 1) {
+                if (try is_string_digit(allocator, input[i - 2 .. i + 1])) |n| {
+                    return n;
+                }
+            }
+            //try a chunk of 4
+            if (i > 2) {
+                if (try is_string_digit(allocator, input[i - 3 .. i + 1])) |n| {
+                    return n;
+                }
+            }
+            //try a chunk of 5
+            if (i > 3) {
+                if (try is_string_digit(allocator, input[i - 4 .. i + 1])) |n| {
+                    return n;
+                }
+            }
+        }
     }
     return error.InvalidParam;
 }
+const TestCase = struct {
+    input: []const u8,
+    expected: i32,
+};
 
 test "find last" {
-    const input = "1abc2";
-    const actual = try find_last(input);
-    try std.testing.expectEqual(@as(i32, 2), actual);
+    const cases = [_]TestCase{
+        TestCase{ .input = "1abc2", .expected = 2 },
+        TestCase{ .input = "7pqrstsixteen", .expected = 6 },
+    };
+
+    for (cases) |case| {
+        const actual = try find_last(std.testing.allocator, case.input);
+        try std.testing.expectEqual(@as(i32, case.expected), actual);
+    }
 }
 
 fn compute_line(allocator: std.mem.Allocator, input: []const u8) !i32 {
-    const first = try find_first(input);
-    const last = try find_last(input);
+    const first = try find_first(allocator, input);
+    const last = try find_last(allocator, input);
     const resultString = try std.fmt.allocPrint(allocator, "{d}{d}", .{ first, last });
     defer allocator.free(resultString);
     return try std.fmt.parseInt(i32, resultString, 10);
@@ -106,6 +182,7 @@ fn sum_calibration_values(allocator: std.mem.Allocator, input: []const u8) !i32 
     var sum: i32 = 0;
     for (lines) |line| {
         const lineSum = try compute_line(allocator, line);
+        std.debug.print("line: {s} sum: {d}\n", .{ line, lineSum });
         sum += lineSum;
     }
     return sum;
@@ -114,4 +191,18 @@ fn sum_calibration_values(allocator: std.mem.Allocator, input: []const u8) !i32 
 test "calibration values sum" {
     const actual = try sum_calibration_values(std.testing.allocator, test_input);
     try std.testing.expectEqual(@as(i32, 142), actual);
+}
+
+test "calibration values sum 2" {
+    const test_input2 =
+        \\two1nine
+        \\eightwothree
+        \\abcone2threexyz
+        \\xtwone3four
+        \\4nineeightseven2
+        \\zoneight234
+        \\7pqrstsixteen
+    ;
+    const actual = try sum_calibration_values(std.testing.allocator, test_input2);
+    try std.testing.expectEqual(@as(i32, 281), actual);
 }
