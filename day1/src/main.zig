@@ -13,26 +13,25 @@ pub fn main() !void {
     std.debug.print("result: {d}\n", .{result});
 }
 
-fn is_string_digit(allocator: std.mem.Allocator, input: []const u8) !?i32 {
+fn is_string_digit(input: []const u8) !?i32 {
     std.debug.print("is_string_digit: {s}\n", .{input});
-    var word_map = std.StringHashMap(i32).init(allocator);
-    defer word_map.deinit();
-    try word_map.put("one", 1);
-    try word_map.put("two", 2);
-    try word_map.put("three", 3);
-    try word_map.put("four", 4);
-    try word_map.put("five", 5);
-    try word_map.put("six", 6);
-    try word_map.put("seven", 7);
-    try word_map.put("eight", 8);
-    try word_map.put("nine", 9);
+    const word_map = std.ComptimeStringMap(i32, .{
+        .{ "one", 1 },
+        .{ "two", 2 },
+        .{ "three", 3 },
+        .{ "four", 4 },
+        .{ "five", 5 },
+        .{ "six", 6 },
+        .{ "seven", 7 },
+        .{ "eight", 8 },
+        .{ "nine", 9 },
+    });
 
     return word_map.get(input);
 }
 
 test "is string digit" {
-    const allocator = std.testing.allocator;
-    const actual = try is_string_digit(allocator, "one");
+    const actual = try is_string_digit("one");
     try std.testing.expectEqual(@as(i32, 1), actual.?);
 }
 
@@ -77,26 +76,26 @@ test "split input" {
     }
 }
 
-fn find_first(allocator: std.mem.Allocator, input: []const u8) !i32 {
+fn find_first(input: []const u8) !i32 {
     for (0.., input) |i, c| {
         if (std.fmt.parseInt(i32, &[1]u8{c}, 10)) |n| {
             return n;
         } else |_| {
             //try a chunk of 3
             if (i + 2 < input.len) {
-                if (try is_string_digit(allocator, input[i .. i + 3])) |n| {
+                if (try is_string_digit(input[i .. i + 3])) |n| {
                     return n;
                 }
             }
             //try a chunk of 4
             if (i + 3 < input.len) {
-                if (try is_string_digit(allocator, input[i .. i + 4])) |n| {
+                if (try is_string_digit(input[i .. i + 4])) |n| {
                     return n;
                 }
             }
             //try a chunk of 5
             if (i + 4 < input.len) {
-                if (try is_string_digit(allocator, input[i .. i + 5])) |n| {
+                if (try is_string_digit(input[i .. i + 5])) |n| {
                     return n;
                 }
             }
@@ -111,12 +110,12 @@ test "find first" {
         TestCase{ .input = "two1abc2", .expected = 2 },
     };
     for (cases) |case| {
-        const actual = try find_first(std.testing.allocator, case.input);
+        const actual = try find_first(case.input);
         try std.testing.expectEqual(@as(i32, case.expected), actual);
     }
 }
 
-fn find_last(allocator: std.mem.Allocator, input: []const u8) !i32 {
+fn find_last(input: []const u8) !i32 {
     var i: usize = input.len - 1;
     while (i >= 0) : (i -= 1) {
         const c = input[i];
@@ -125,19 +124,19 @@ fn find_last(allocator: std.mem.Allocator, input: []const u8) !i32 {
         } else |_| {
             //try a chunk of 3
             if (i > 1) {
-                if (try is_string_digit(allocator, input[i - 2 .. i + 1])) |n| {
+                if (try is_string_digit(input[i - 2 .. i + 1])) |n| {
                     return n;
                 }
             }
             //try a chunk of 4
             if (i > 2) {
-                if (try is_string_digit(allocator, input[i - 3 .. i + 1])) |n| {
+                if (try is_string_digit(input[i - 3 .. i + 1])) |n| {
                     return n;
                 }
             }
             //try a chunk of 5
             if (i > 3) {
-                if (try is_string_digit(allocator, input[i - 4 .. i + 1])) |n| {
+                if (try is_string_digit(input[i - 4 .. i + 1])) |n| {
                     return n;
                 }
             }
@@ -157,14 +156,14 @@ test "find last" {
     };
 
     for (cases) |case| {
-        const actual = try find_last(std.testing.allocator, case.input);
+        const actual = try find_last(case.input);
         try std.testing.expectEqual(@as(i32, case.expected), actual);
     }
 }
 
 fn compute_line(allocator: std.mem.Allocator, input: []const u8) !i32 {
-    const first = try find_first(allocator, input);
-    const last = try find_last(allocator, input);
+    const first = try find_first(input);
+    const last = try find_last(input);
     const resultString = try std.fmt.allocPrint(allocator, "{d}{d}", .{ first, last });
     defer allocator.free(resultString);
     return try std.fmt.parseInt(i32, resultString, 10);
